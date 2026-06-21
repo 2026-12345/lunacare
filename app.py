@@ -53,18 +53,55 @@ st.markdown(
 # ============================================================
 if "profiled" not in st.session_state:
     st.session_state.profiled = False          # 초기 프로파일링 완료 여부
-    st.session_state.cycle_regularity = None    # 주기 패턴: 일정/아니오/불규칙
+    st.session_state.cycle_regularity = None    # 주기 패턴: 일정함/불규칙함
     st.session_state.lifestyle_sensitivity = None  # 생활 영향 민감도: 많음/없음/잘모름
     st.session_state.baseline_pain = None       # 평소 통증 수준: 상/중/하
     st.session_state.drug_history = {}          # {약물명: 효과} 누적 딕셔너리
 
 # 약물 마스터 데이터: (표시명, 주성분 계열, 주요 타겟 증상)
+# 표시명은 "약 이름 (성분: 예시)" 형태로 통일하여 사용자가 약물명과 성분을 동시에 인지할 수 있도록 함
 DRUG_DB = {
-    "타이레놀": {"성분": "아세트아미노펜", "타겟": ["가벼운 통증", "발열"]},
-    "이지엔6 애니": {"성분": "이부프로펜", "타겟": ["일반 생리통", "염증성 통증"]},
-    "이지엔6 이브/그날엔": {"성분": "이부프로펜+파마브롬", "타겟": ["붓기", "부종 동반 통증"]},
-    "탁센/이지엔6 프로": {"성분": "나프록센/덱시부프로펜", "타겟": ["강한 통증", "허리 통증"]},
-    "부스코판": {"성분": "부틸스코폴라민(진경제)", "타겟": ["쥐어짜는 통증", "경련성 복통"]},
+    "부루펜 (성분: 이부프로펜)": {"성분": "이부프로펜", "타겟": ["일반 생리통", "염증성 통증"]},
+    "애드빌 (성분: 이부프로펜)": {"성분": "이부프로펜", "타겟": ["일반 생리통", "염증성 통증"]},
+    "이지엔6 프로 (성분: 덱시부프로펜)": {"성분": "덱시부프로펜", "타겟": ["빠른 통증 완화"]},
+    "낙센 (성분: 나프록센)": {"성분": "나프록센", "타겟": ["강한 통증", "허리 통증"]},
+    "타이레놀 (성분: 아세트아미노펜)": {"성분": "아세트아미노펜", "타겟": ["가벼운 통증", "발열"]},
+    "게보린 (성분: 아세트아미노펜 복합성분)": {"성분": "아세트아미노펜 복합성분", "타겟": ["가벼운 통증", "빠른 진통"]},
+    "펜잘 (성분: 아세트아미노펜 복합성분)": {"성분": "아세트아미노펜 복합성분", "타겟": ["가벼운 통증", "발열"]},
+}
+
+# 성분 계열별 정밀 안전 복용 가이드라인
+# DRUG_DB의 "성분" 값과 매칭하여 1순위 추천 약물의 상세 복용법을 함께 출력하는 데 사용
+DOSAGE_GUIDE = {
+    "이부프로펜": {
+        "복용 간격": "최소 4~6시간 (1일 3~4회, 하루 최대 4회)",
+        "식후 복용 여부": "식후 복용 강력 권장 (속쓰림, 복통 등 위장 부작용 예방)",
+        "주의사항": "공복 복용은 피하는 것이 좋으며, 위장 문제가 있으면 특히 식후 복용이 필수적입니다. "
+                  "단기 복용(5~10일 이내)을 권장합니다.",
+    },
+    "덱시부프로펜": {
+        "복용 간격": "6~8시간 (1회 1캡슐 300mg / 1일 2~4회, 하루 최대 4캡슐 1200mg)",
+        "식후 복용 여부": "식후 복용 권장 (위장 부담 감소)",
+        "주의사항": "공복보다는 식후에 충분한 물과 함께 복용하는 것이 안전합니다.",
+    },
+    "나프록센": {
+        "복용 간격": "생리통(통경) 시 6~8시간 (초회 2정 500mg 복용 후, 이후 1정 250mg씩 복용)",
+        "식후 복용 여부": "식후 복용 권장 (위장 부작용 예방)",
+        "주의사항": "1일 최대 5정(1250mg)을 초과하지 말아야 합니다. "
+                  "단, 낙센에스정의 경우 식전 최소 30분 전 복용이 권장됩니다.",
+    },
+    "아세트아미노펜": {
+        "복용 간격": "4~6시간 (하루 최대 4회)",
+        "식후 복용 여부": "식전/식후 모두 가능 (위장 부담이 적음) 단, 식후가 더 안전함",
+        "주의사항": "과량 복용 시 심각한 간독성 위험이 있으므로 하루 최대 허용량을 반드시 준수해야 하며, "
+                  "음주 후 복용은 절대 금지됩니다.",
+    },
+    "아세트아미노펜 복합성분": {
+        "복용 간격": "4~6시간 (하루 최대 4회)",
+        "식후 복용 여부": "식전/식후 모두 가능 (위장 부담이 적음) 단, 식후가 더 안전함",
+        "주의사항": "과량 복용 시 심각한 간독성 위험이 있으므로 하루 최대 허용량을 반드시 준수해야 하며, "
+                  "음주 후 복용은 절대 금지됩니다. 복합성분 제제이므로 카페인 등 다른 성분 과다 섭취에도 유의하세요.",
+    },
 }
 
 # 생활 영향 민감도 → 가중치 매핑 (핵심 로직 1)
@@ -97,7 +134,7 @@ if not st.session_state.profiled:
         st.subheader("1️⃣ 주기 패턴")
         cycle_regularity = st.radio(
             "평소 생리 주기가 일정한가요?",
-            ["예", "아니오", "불규칙"],
+            ["일정함", "불규칙함"],
             horizontal=True,
         )
 
@@ -120,13 +157,13 @@ if not st.session_state.profiled:
         st.subheader("4️⃣ 평소 복용 약물 및 효과")
         st.caption("자주 드셨던 약물을 선택하고, 각각의 효과를 평가해 주세요. (복수 선택 가능)")
 
-        drug_options = list(DRUG_DB.keys()) + ["기타"]
+        drug_options = list(DRUG_DB.keys()) + ["기타(직접 입력)"]
         selected_drugs = st.multiselect("자주 복용한 약물", drug_options)
 
         # 선택한 약물 각각에 대해 효과 입력 (동적 폼)
         drug_feedback = {}
         for drug in selected_drugs:
-            if drug == "기타":
+            if drug == "기타(직접 입력)":
                 custom_name = st.text_input("기타 약물명을 입력해 주세요", key="custom_drug_name")
                 if custom_name:
                     effect = st.radio(
@@ -184,7 +221,7 @@ else:
     st.subheader("📍 주요 증상 (해당되는 것을 모두 선택)")
     symptoms = st.multiselect(
         "현재 또는 예상되는 증상",
-        ["쥐어짜는 듯한 통증", "붓기/부종", "허리 통증", "두통", "일반적인 둔통"],
+        ["일반적인 생리통", "허리 통증/강한 통증", "두통/가벼운 통증", "빠르게 가라앉히고 싶은 통증"],
     )
 
     last_period_date = st.date_input("최근 생리 시작일", value=date.today() - timedelta(days=20))
@@ -210,7 +247,7 @@ else:
         adjustment_days = round(raw_adjustment * weight)
 
         # 불규칙 주기인 경우 예측 신뢰구간을 더 넓게 설정
-        uncertainty = 3 if st.session_state.cycle_regularity == "불규칙" else 1
+        uncertainty = 3 if st.session_state.cycle_regularity == "불규칙함" else 1
 
         predicted_date = last_period_date + timedelta(days=avg_cycle + adjustment_days)
 
@@ -258,11 +295,10 @@ else:
             # 2) 현재 증상과 약물의 타겟이 얼마나 겹치는지 점수화
             score = 0
             symptom_map = {
-                "쥐어짜는 듯한 통증": "쥐어짜는 통증",
-                "붓기/부종": "붓기",
-                "허리 통증": "허리 통증",
-                "두통": "가벼운 통증",
-                "일반적인 둔통": "일반 생리통",
+                "일반적인 생리통": "일반 생리통",
+                "허리 통증/강한 통증": "허리 통증",
+                "두통/가벼운 통증": "가벼운 통증",
+                "빠르게 가라앉히고 싶은 통증": "빠른 통증 완화",
             }
             for s in symptoms:
                 mapped = symptom_map.get(s)
@@ -282,18 +318,48 @@ else:
             st.warning("추천 가능한 약물이 없어요. 약사 또는 의사와 상담을 권장합니다.")
         else:
             top = candidates[0]
+            top_name, top_info, top_score, top_effect = top
+            top_ingredient = top_info["성분"]
+            guide = DOSAGE_GUIDE.get(top_ingredient)
+
             st.markdown(
                 f"""
                 <div class="info-box">
-                <b>1순위 추천: {top[0]}</b> ({top[1]['성분']})<br>
-                {'✅ 과거 효과 좋음으로 기록된 약물이에요.' if top[3] == '효과 좋음' else ''}
+                <b>1순위 추천: {top_name}</b><br>
+                {'✅ 과거 효과 좋음으로 기록된 약물이에요.' if top_effect == '효과 좋음' else ''}
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
+            # ---- 성분별 정밀 안전 복용 가이드 (표 형태) ----------------
+            if guide:
+                st.markdown(f"**📑 '{top_ingredient}' 계열 정밀 복용 가이드**")
+                st.markdown(
+                    f"""
+                    <div class="alert-box">
+                    <table style="width:100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding:6px 8px; font-weight:600; width:30%;">⏱️ 복용 간격</td>
+                        <td style="padding:6px 8px;">{guide['복용 간격']}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 8px; font-weight:600;">🍽️ 식후 복용 여부</td>
+                        <td style="padding:6px 8px;">{guide['식후 복용 여부']}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 8px; font-weight:600;">⚠️ 주의사항</td>
+                        <td style="padding:6px 8px;">{guide['주의사항']}</td>
+                      </tr>
+                    </table>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
             with st.expander("다른 후보 약물 보기"):
                 for name, info, score, eff in candidates[1:]:
-                    st.write(f"- **{name}** ({info['성분']}) — 과거 기록: {eff or '없음'}")
+                    st.write(f"- **{name}** — 과거 기록: {eff or '없음'}")
 
             excluded = [d for d, e in st.session_state.drug_history.items() if e == "효과 없음"]
             if excluded:
@@ -315,7 +381,7 @@ else:
 
     fb_col1, fb_col2 = st.columns(2)
     with fb_col1:
-        fb_drug = st.selectbox("복용한 약물", list(DRUG_DB.keys()) + ["기타"])
+        fb_drug = st.selectbox("복용한 약물", list(DRUG_DB.keys()) + ["기타(직접 입력)"])
     with fb_col2:
         fb_effect = st.radio("효과는 어땠나요?", ["효과 좋음", "보통", "효과 없음"], horizontal=True)
 
